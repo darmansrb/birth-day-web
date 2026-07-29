@@ -1,0 +1,22 @@
+services:
+  birthday-web:
+    image: nginx:alpine
+    container_name: birthday-etin-app
+    restart: always
+    # ports:
+    #   - "3000:80"
+    volumes:
+      - ./dist:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./public/wishes.json:/usr/share/nginx/html/wishes.json
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.etinbirthday.entrypoints=web"
+      - "traefik.http.routers.etinbirthday.rule=Host(`etinbirthday.dthrees.my.id`)"
+      - "traefik.http.services.etinbirthday.loadbalancer.server.port=80"
+
+networks:
+  proxy:
+    external: true
