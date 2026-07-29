@@ -12,10 +12,7 @@ node_modules/
 /.pnp
 .pnp.js
 
-# Production / Build output
-dist/
-dist-ssr/
-build/
+# Production / Build output (dist is now tracked for docker-compose)
 *.local
 
 # macOS system files
