@@ -1,0 +1,125 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-yellow: #FFE600;
+    --bg-pink: #FF597B;
+    --bg-cyan: #00F0FF;
+    --bg-green: #A6FF00;
+    --bg-purple: #B8C0FF;
+    --bg-orange: #FF8E3C;
+    --bg-cream: #FFF9E6;
+    --border-black: #000000;
+    --shadow-black: #000000;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background-color: #FFF9E6;
+    background-image: 
+      radial-gradient(#000000 1px, transparent 1px),
+      radial-gradient(#000000 1px, #FFF9E6 1px);
+    background-size: 40px 40px;
+    background-position: 0 0, 20px 20px;
+    color: #000000;
+  }
+
+  h1, h2, h3, h4, .font-heading {
+    font-family: 'Space Grotesk', 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .font-bungee {
+    font-family: 'Bungee', 'Space Grotesk', sans-serif;
+  }
+}
+
+/* Custom Neobrutalism Utilities */
+.neo-box {
+  border: 3.5px solid #000000;
+  box-shadow: 5px 5px 0px 0px #000000;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.neo-box-sm {
+  border: 3.5px solid #000000;
+  box-shadow: 3px 3px 0px 0px #000000;
+}
+
+.neo-box-lg {
+  border: 4px solid #000000;
+  box-shadow: 8px 8px 0px 0px #000000;
+}
+
+.neo-btn {
+  border: 3.5px solid #000000;
+  box-shadow: 4px 4px 0px 0px #000000;
+  font-weight: 800;
+  transition: all 0.1s ease;
+  user-select: none;
+  cursor: pointer;
+}
+
+.neo-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px 0px #000000;
+}
+
+.neo-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0px 0px #000000;
+}
+
+.neo-tag {
+  border: 2.5px solid #000000;
+  box-shadow: 2px 2px 0px 0px #000000;
+  font-weight: 700;
+}
+
+/* Wobbly retro animations */
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-8px) rotate(2deg); }
+}
+
+@keyframes pulseFlame {
+  0%, 100% { transform: scale(1) rotate(-1deg); opacity: 0.95; }
+  50% { transform: scale(1.15) rotate(2deg); opacity: 1; filter: drop-shadow(0 0 12px #ffaa00); }
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-float {
+  animation: floatSlow 4s ease-in-out infinite;
+}
+
+.animate-flame {
+  animation: pulseFlame 0.4s ease-in-out infinite alternate;
+}
+
+.animate-marquee {
+  display: flex;
+  width: 200%;
+  animation: marquee 25s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 12px;
+}
+::-webkit-scrollbar-track {
+  background: #FFF9E6;
+  border-left: 3px solid #000;
+}
+::-webkit-scrollbar-thumb {
+  background: #FF597B;
+  border: 3px solid #000;
+}

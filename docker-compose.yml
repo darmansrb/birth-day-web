@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  birthday-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: birthday-etin-app
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./public/wishes.json:/app/public/wishes.json
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
