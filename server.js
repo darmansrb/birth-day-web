@@ -145,13 +145,9 @@ app.post('/api/wishes', (req, res) => {
   res.status(201).json(updatedWishes);
 });
 
-// API Endpoint to Delete Wish
+// API Endpoint to Delete Wish - DISABLED
 app.delete('/api/wishes/:id', (req, res) => {
-  const { id } = req.params;
-  const currentWishes = getWishes();
-  const updatedWishes = currentWishes.filter((w) => w.id !== id);
-  saveWishes(updatedWishes);
-  res.json(updatedWishes);
+  return res.status(403).json({ error: 'Ucapan tidak dapat dihapus.' });
 });
 
 // Serve static frontend build if dist folder exists

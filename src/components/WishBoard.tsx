@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { Send, Heart, MessageSquarePlus, Trash2, RefreshCw, Download, FileJson, Check } from 'lucide-react';
+import { Send, Heart, MessageSquarePlus, RefreshCw, Download, FileJson, Check } from 'lucide-react';
 import { INITIAL_WISHES, WishMessage } from '@/data/wishes';
 import { NeobrutalBadge } from './ui/NeobrutalBadge';
 import { NeobrutalButton } from './ui/NeobrutalButton';
@@ -59,7 +59,7 @@ export const WishBoard: React.FC = () => {
 
   useEffect(() => {
     fetchWishes();
-    // Poll every 3 seconds for real-time updates when wishes are added or deleted by anyone
+    // Poll every 3 seconds for real-time updates when new wishes are added by anyone
     const interval = setInterval(fetchWishes, 3000);
     return () => clearInterval(interval);
   }, []);
@@ -139,23 +139,6 @@ export const WishBoard: React.FC = () => {
     setTimeout(() => {
       setStatusMessage(null);
     }, 4000);
-  };
-
-  const handleDelete = async (id: string) => {
-    sound.playPop();
-    try {
-      const res = await fetch(`/api/wishes/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        const updated = await res.json();
-        if (Array.isArray(updated)) {
-          setWishes(updated);
-          return;
-        }
-      }
-    } catch {
-      // Fallback local filtering
-    }
-    setWishes((prev) => prev.filter((w) => w.id !== id));
   };
 
   const handleDownloadJson = () => {
@@ -368,14 +351,6 @@ export const WishBoard: React.FC = () => {
                         </span>
                       </div>
                     </div>
-
-                    <button
-                      onClick={() => handleDelete(w.id)}
-                      className="p-1 rounded-lg hover:bg-black/10 transition-colors"
-                      title="Hapus Ucapan"
-                    >
-                      <Trash2 className="w-4 h-4 text-black stroke-[2.5]" />
-                    </button>
                   </div>
 
                   {/* Message Body */}
@@ -401,6 +376,7 @@ export const WishBoard: React.FC = () => {
     </section>
   );
 };
+
 
 
 
