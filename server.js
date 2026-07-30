@@ -130,7 +130,7 @@ app.post('/api/wishes', (req, res) => {
 
   const currentWishes = getWishes();
   const newWish = {
-    id: 'w_' + Date.now(),
+    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'w_' + Date.now(),
     name: name.trim(),
     relation: relation ? relation.trim() : 'Sahabat',
     message: message.trim(),
@@ -145,9 +145,13 @@ app.post('/api/wishes', (req, res) => {
   res.status(201).json(updatedWishes);
 });
 
-// API Endpoint to Delete Wish - DISABLED
+// API Endpoint to Delete Wish
 app.delete('/api/wishes/:id', (req, res) => {
-  return res.status(403).json({ error: 'Ucapan tidak dapat dihapus.' });
+  const { id } = req.params;
+  const currentWishes = getWishes();
+  const updatedWishes = currentWishes.filter((w) => w.id !== id);
+  saveWishes(updatedWishes);
+  res.json(updatedWishes);
 });
 
 // Serve static frontend build if dist folder exists

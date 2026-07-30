@@ -61,7 +61,7 @@ function wishesApiPlugin() {
               const newWishData = JSON.parse(body);
               const current = readWishes();
               const newWish = {
-                id: 'w_' + Date.now(),
+                id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'w_' + Date.now(),
                 name: newWishData.name?.trim() || 'Sahabat',
                 relation: newWishData.relation?.trim() || 'Sahabat',
                 message: newWishData.message?.trim() || '',

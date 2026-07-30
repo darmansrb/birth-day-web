@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { Send, Heart, MessageSquarePlus, RefreshCw, Download, RotateCcw, FileJson, Check } from 'lucide-react';
+import { Send, Heart, MessageSquarePlus, Trash2, RefreshCw, Download, FileJson, Check } from 'lucide-react';
 import { INITIAL_WISHES, WishMessage } from '@/data/wishes';
 import { NeobrutalBadge } from './ui/NeobrutalBadge';
 import { NeobrutalButton } from './ui/NeobrutalButton';
 import { sound } from '@/utils/sound';
-
-const STORAGE_KEY = 'birthday_wishes_local';
 
 export const WishBoard: React.FC = () => {
   const [wishes, setWishes] = useState<WishMessage[]>([]);
@@ -19,70 +17,33 @@ export const WishBoard: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  // Helper to merge list with local storage without duplicate IDs
-  const mergeWithLocalStorage = (serverList: WishMessage[]): WishMessage[] => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (!stored) return serverList;
-      const localList: WishMessage[] = JSON.parse(stored);
-      if (!Array.isArray(localList)) return serverList;
-
-      const serverIds = new Set(serverList.map((w) => w.id));
-      const newFromLocal = localList.filter((w) => !serverIds.has(w.id));
-      return [...newFromLocal, ...serverList];
-    } catch {
-      return serverList;
-    }
-  };
-
   const fetchWishes = async () => {
-    setIsLoading(true);
-
     // 1. Try fetching from API / server endpoint
     try {
       const res = await fetch('/api/wishes', {
-        headers: { 'Cache-Control': 'no-cache' }
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
       });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          const merged = mergeWithLocalStorage(data);
-          setWishes(merged);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+          setWishes(data);
           setIsLoading(false);
           return;
         }
       }
     } catch {
-      // Ignore & try fallback
+      // Ignore & try static fallback
     }
 
-    // 2. Try fetching static public/wishes.json
+    // 2. Try fetching static /wishes.json
     try {
       const resJSON = await fetch('/wishes.json', {
-        headers: { 'Cache-Control': 'no-cache' }
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
       });
       if (resJSON.ok) {
         const data = await resJSON.json();
         if (Array.isArray(data)) {
-          const merged = mergeWithLocalStorage(data);
-          setWishes(merged);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-          setIsLoading(false);
-          return;
-        }
-      }
-    } catch {
-      // Ignore & try fallback
-    }
-
-    // 3. Fallback to LocalStorage or INITIAL_WISHES
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setWishes(parsed);
+          setWishes(data);
           setIsLoading(false);
           return;
         }
@@ -91,13 +52,16 @@ export const WishBoard: React.FC = () => {
       // Ignore
     }
 
+    // 3. Fallback to INITIAL_WISHES if no endpoint responds
     setWishes(INITIAL_WISHES);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_WISHES));
     setIsLoading(false);
   };
 
   useEffect(() => {
     fetchWishes();
+    // Poll every 3 seconds for real-time updates when wishes are added or deleted by anyone
+    const interval = setInterval(fetchWishes, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   const stickers = ['👑', '💖', '🥳', '🚀', '🌸', '✨', '🎂', '🎉', '☕', '💎'];
@@ -126,7 +90,6 @@ export const WishBoard: React.FC = () => {
     };
 
     let success = false;
-    let updatedList: WishMessage[] = [];
 
     try {
       const res = await fetch('/api/wishes', {
@@ -138,19 +101,19 @@ export const WishBoard: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          updatedList = data;
+          setWishes(data);
           success = true;
-          setStatusMessage('Tersimpan di file wishes.json server & browser! 💾');
+          setStatusMessage('Tersimpan ke wishes.json! 💾');
         }
       }
     } catch (err) {
-      console.warn('API endpoint unavailable, falling back to browser storage persistence:', err);
+      console.warn('API endpoint submission failed:', err);
     }
 
     if (!success) {
-      // Fallback update for static host / offline
+      const uuid = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'w_' + Date.now();
       const newWish: WishMessage = {
-        id: 'w_' + Date.now(),
+        id: uuid,
         name: payload.name,
         relation: payload.relation,
         message: payload.message,
@@ -158,13 +121,9 @@ export const WishBoard: React.FC = () => {
         sticker: payload.sticker,
         date: 'Baru saja'
       };
-
-      updatedList = [newWish, ...wishes];
-      setStatusMessage('Tersimpan di browser storage (Dapat diunduh ke file wishes.json)! 💾');
+      setWishes((prev) => [newWish, ...prev]);
+      setStatusMessage('Ucapan ditambahkan! 💾');
     }
-
-    setWishes(updatedList);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
 
     setName('');
     setRelation('');
@@ -182,6 +141,23 @@ export const WishBoard: React.FC = () => {
     }, 4000);
   };
 
+  const handleDelete = async (id: string) => {
+    sound.playPop();
+    try {
+      const res = await fetch(`/api/wishes/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        const updated = await res.json();
+        if (Array.isArray(updated)) {
+          setWishes(updated);
+          return;
+        }
+      }
+    } catch {
+      // Fallback local filtering
+    }
+    setWishes((prev) => prev.filter((w) => w.id !== id));
+  };
+
   const handleDownloadJson = () => {
     sound.playSuccess();
     const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
@@ -195,26 +171,18 @@ export const WishBoard: React.FC = () => {
     downloadAnchor.remove();
   };
 
-  const handleResetToDefault = () => {
-    if (window.confirm('Apakah kamu yakin ingin mereset ucapan ke data bawaan awal?')) {
-      sound.playPop();
-      localStorage.removeItem(STORAGE_KEY);
-      fetchWishes();
-    }
-  };
-
   return (
     <section id="wishes" className="py-12 px-4 max-w-7xl mx-auto">
       {/* Header */}
       <div className="text-center mb-10">
         <NeobrutalBadge color="yellow" className="mb-2">
-          SHARED JSON GUESTBOOK 📁
+          REAL-TIME SHARED JSON GUESTBOOK 📁
         </NeobrutalBadge>
         <h2 className="text-3xl sm:text-5xl font-bungee text-black mt-1">
           Papan Doa & Harapan Untuk Etin 💌
         </h2>
         <p className="text-black font-extrabold text-base sm:text-lg mt-1 max-w-xl mx-auto">
-          Setiap ucapan tersimpan otomatis ke <code className="bg-[#FFE600] px-2 py-0.5 rounded border border-black font-mono">wishes.json</code> dan browser storage!
+          Setiap ucapan tersimpan langsung ke <code className="bg-[#FFE600] px-2 py-0.5 rounded border border-black font-mono">wishes.json</code> server secara real-time!
         </p>
       </div>
 
@@ -231,7 +199,7 @@ export const WishBoard: React.FC = () => {
                 <MessageSquarePlus className="w-6 h-6 text-[#FF597B]" />
                 <h3 className="text-xl font-bungee text-black">Tulis Ucapan Baru</h3>
               </div>
-              <NeobrutalBadge color="green">AUTO SAVE JSON 💾</NeobrutalBadge>
+              <NeobrutalBadge color="green">REALTIME JSON 💾</NeobrutalBadge>
             </div>
 
             {statusMessage && (
@@ -365,18 +333,10 @@ export const WishBoard: React.FC = () => {
               <button
                 onClick={fetchWishes}
                 className="neo-tag bg-white text-black px-3 py-1 rounded-xl text-xs font-extrabold flex items-center gap-1.5 hover:bg-[#FFE600]"
-                title="Refresh dari server & storage"
+                title="Refresh dari server"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
                 Refresh
-              </button>
-
-              <button
-                onClick={handleResetToDefault}
-                className="neo-tag bg-gray-200 text-black px-2.5 py-1 rounded-xl text-xs font-bold hover:bg-red-200"
-                title="Reset ke data bawaan"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -408,6 +368,14 @@ export const WishBoard: React.FC = () => {
                         </span>
                       </div>
                     </div>
+
+                    <button
+                      onClick={() => handleDelete(w.id)}
+                      className="p-1 rounded-lg hover:bg-black/10 transition-colors"
+                      title="Hapus Ucapan"
+                    >
+                      <Trash2 className="w-4 h-4 text-black stroke-[2.5]" />
+                    </button>
                   </div>
 
                   {/* Message Body */}
@@ -433,5 +401,6 @@ export const WishBoard: React.FC = () => {
     </section>
   );
 };
+
 
 
