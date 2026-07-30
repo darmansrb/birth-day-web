@@ -1,11 +1,13 @@
 services:
   birthday-web:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: birthday-etin-app
     restart: always
     ports:
-      - "3000:80"
+      - "3000:3000"
     volumes:
-      - ./dist:/usr/share/nginx/html:ro
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./public/wishes.json:/usr/share/nginx/html/wishes.json
+      - ./dist:/app/dist
+      - ./public:/app/public
+

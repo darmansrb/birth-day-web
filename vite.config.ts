@@ -4,34 +4,62 @@ import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 import fs from 'fs'
 
-// Custom Vite plugin to handle /api/wishes read/write in Vite Dev Server mode
+// Custom Vite plugin to handle /api/wishes & /wishes.json read/write in Vite Dev Server mode
 function wishesApiPlugin() {
   return {
     name: 'wishes-api-plugin',
     configureServer(server: any) {
-      const wishesFile = path.resolve(__dirname, 'public/wishes.json');
+      const publicWishesFile = path.resolve(__dirname, 'public/wishes.json');
+      const distDir = path.resolve(__dirname, 'dist');
+      const distWishesFile = path.resolve(__dirname, 'dist/wishes.json');
+
+      const saveWishes = (wishes: any[]) => {
+        const dataStr = JSON.stringify(wishes, null, 2);
+        try {
+          fs.writeFileSync(publicWishesFile, dataStr, 'utf-8');
+        } catch (e) {
+          console.error('Failed writing to public/wishes.json:', e);
+        }
+        try {
+          if (!fs.existsSync(distDir)) {
+            fs.mkdirSync(distDir, { recursive: true });
+          }
+          fs.writeFileSync(distWishesFile, dataStr, 'utf-8');
+        } catch (e) {
+          console.error('Failed writing to dist/wishes.json:', e);
+        }
+      };
+
+      const readWishes = () => {
+        try {
+          if (fs.existsSync(publicWishesFile)) {
+            return JSON.parse(fs.readFileSync(publicWishesFile, 'utf-8'));
+          }
+          if (fs.existsSync(distWishesFile)) {
+            return JSON.parse(fs.readFileSync(distWishesFile, 'utf-8'));
+          }
+        } catch (e) {
+          console.error('Error reading wishes:', e);
+        }
+        return [];
+      };
 
       server.middlewares.use(async (req: any, res: any, next: any) => {
-        if (req.url === '/api/wishes' && req.method === 'GET') {
-          try {
-            const data = fs.readFileSync(wishesFile, 'utf-8');
-            res.setHeader('Content-Type', 'application/json');
-            return res.end(data);
-          } catch (e) {
-            return res.end(JSON.stringify([]));
-          }
+        const url = (req.url || '').split('?')[0];
+
+        if ((url === '/api/wishes' || url === '/api/wishes/' || url === '/wishes.json') && req.method === 'GET') {
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Cache-Control', 'no-cache');
+          return res.end(JSON.stringify(readWishes()));
         }
 
-        if (req.url === '/api/wishes' && req.method === 'POST') {
+        if ((url === '/api/wishes' || url === '/api/wishes/' || url === '/wishes.json') && req.method === 'POST') {
           let body = '';
           req.on('data', (chunk: any) => { body += chunk; });
           req.on('end', () => {
             try {
               const newWishData = JSON.parse(body);
-              let current: any[] = [];
-              if (fs.existsSync(wishesFile)) {
-                current = JSON.parse(fs.readFileSync(wishesFile, 'utf-8'));
-              }
+              const current = readWishes();
               const newWish = {
                 id: 'w_' + Date.now(),
                 name: newWishData.name?.trim() || 'Sahabat',
@@ -42,15 +70,32 @@ function wishesApiPlugin() {
                 date: 'Baru saja'
               };
               const updated = [newWish, ...current];
-              fs.writeFileSync(wishesFile, JSON.stringify(updated, null, 2), 'utf-8');
+              saveWishes(updated);
+
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify(updated));
             } catch (e) {
               res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ error: 'Failed to write wish' }));
             }
           });
           return;
+        }
+
+        if (url.startsWith('/api/wishes/') && req.method === 'DELETE') {
+          const id = url.replace('/api/wishes/', '');
+          try {
+            const current = readWishes();
+            const updated = current.filter((w: any) => w.id !== id);
+            saveWishes(updated);
+
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify(updated));
+          } catch (e) {
+            res.statusCode = 500;
+            return res.end(JSON.stringify({ error: 'Failed to delete wish' }));
+          }
         }
 
         next();

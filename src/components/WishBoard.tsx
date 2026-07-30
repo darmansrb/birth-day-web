@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { Send, Heart, Sparkles, MessageSquarePlus, Trash2, RefreshCw } from 'lucide-react';
+import { Send, Heart, MessageSquarePlus, RefreshCw, Download, RotateCcw, FileJson, Check } from 'lucide-react';
 import { INITIAL_WISHES, WishMessage } from '@/data/wishes';
 import { NeobrutalBadge } from './ui/NeobrutalBadge';
 import { NeobrutalButton } from './ui/NeobrutalButton';
 import { sound } from '@/utils/sound';
+
+const STORAGE_KEY = 'birthday_wishes_local';
 
 export const WishBoard: React.FC = () => {
   const [wishes, setWishes] = useState<WishMessage[]>([]);
@@ -15,37 +17,82 @@ export const WishBoard: React.FC = () => {
   const [selectedColor, setSelectedColor] = useState('#FFE600');
   const [selectedSticker, setSelectedSticker] = useState('👑');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  // Helper to merge list with local storage without duplicate IDs
+  const mergeWithLocalStorage = (serverList: WishMessage[]): WishMessage[] => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (!stored) return serverList;
+      const localList: WishMessage[] = JSON.parse(stored);
+      if (!Array.isArray(localList)) return serverList;
+
+      const serverIds = new Set(serverList.map((w) => w.id));
+      const newFromLocal = localList.filter((w) => !serverIds.has(w.id));
+      return [...newFromLocal, ...serverList];
+    } catch {
+      return serverList;
+    }
+  };
 
   const fetchWishes = async () => {
     setIsLoading(true);
+
+    // 1. Try fetching from API / server endpoint
     try {
-      // 1. Try fetching from API / server endpoint
-      const res = await fetch('/api/wishes');
+      const res = await fetch('/api/wishes', {
+        headers: { 'Cache-Control': 'no-cache' }
+      });
       if (res.ok) {
         const data = await res.json();
-        setWishes(data);
-        setIsLoading(false);
-        return;
+        if (Array.isArray(data)) {
+          const merged = mergeWithLocalStorage(data);
+          setWishes(merged);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+          setIsLoading(false);
+          return;
+        }
       }
     } catch {
-      // Ignore & fallback
+      // Ignore & try fallback
     }
 
+    // 2. Try fetching static public/wishes.json
     try {
-      // 2. Try fetching static public/wishes.json
-      const resJSON = await fetch('/wishes.json');
+      const resJSON = await fetch('/wishes.json', {
+        headers: { 'Cache-Control': 'no-cache' }
+      });
       if (resJSON.ok) {
         const data = await resJSON.json();
-        setWishes(data);
-        setIsLoading(false);
-        return;
+        if (Array.isArray(data)) {
+          const merged = mergeWithLocalStorage(data);
+          setWishes(merged);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+          setIsLoading(false);
+          return;
+        }
       }
     } catch {
-      // Ignore & fallback
+      // Ignore & try fallback
     }
 
-    // 3. Fallback to INITIAL_WISHES
+    // 3. Fallback to LocalStorage or INITIAL_WISHES
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setWishes(parsed);
+          setIsLoading(false);
+          return;
+        }
+      }
+    } catch {
+      // Ignore
+    }
+
     setWishes(INITIAL_WISHES);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_WISHES));
     setIsLoading(false);
   };
 
@@ -78,6 +125,9 @@ export const WishBoard: React.FC = () => {
       sticker: selectedSticker
     };
 
+    let success = false;
+    let updatedList: WishMessage[] = [];
+
     try {
       const res = await fetch('/api/wishes', {
         method: 'POST',
@@ -86,36 +136,36 @@ export const WishBoard: React.FC = () => {
       });
 
       if (res.ok) {
-        const updatedWishes = await res.json();
-        setWishes(updatedWishes);
-        setName('');
-        setRelation('');
-        setMessage('');
-        setIsSubmitting(false);
-
-        confetti({
-          particleCount: 70,
-          spread: 70,
-          origin: { y: 0.8 }
-        });
-        return;
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          updatedList = data;
+          success = true;
+          setStatusMessage('Tersimpan di file wishes.json server & browser! 💾');
+        }
       }
     } catch (err) {
-      console.warn('API submission failed, using local update:', err);
+      console.warn('API endpoint unavailable, falling back to browser storage persistence:', err);
     }
 
-    // Fallback if API route is offline
-    const newWish: WishMessage = {
-      id: 'w_' + Date.now(),
-      name: payload.name,
-      relation: payload.relation,
-      message: payload.message,
-      color: payload.color,
-      sticker: payload.sticker,
-      date: 'Baru saja'
-    };
+    if (!success) {
+      // Fallback update for static host / offline
+      const newWish: WishMessage = {
+        id: 'w_' + Date.now(),
+        name: payload.name,
+        relation: payload.relation,
+        message: payload.message,
+        color: payload.color,
+        sticker: payload.sticker,
+        date: 'Baru saja'
+      };
 
-    setWishes([newWish, ...wishes]);
+      updatedList = [newWish, ...wishes];
+      setStatusMessage('Tersimpan di browser storage (Dapat diunduh ke file wishes.json)! 💾');
+    }
+
+    setWishes(updatedList);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
+
     setName('');
     setRelation('');
     setMessage('');
@@ -126,12 +176,31 @@ export const WishBoard: React.FC = () => {
       spread: 70,
       origin: { y: 0.8 }
     });
+
+    setTimeout(() => {
+      setStatusMessage(null);
+    }, 4000);
   };
 
-  const handleDelete = (id: string) => {
-    sound.playPop();
-    const updated = wishes.filter((w) => w.id !== id);
-    setWishes(updated);
+  const handleDownloadJson = () => {
+    sound.playSuccess();
+    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+      JSON.stringify(wishes, null, 2)
+    )}`;
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', jsonString);
+    downloadAnchor.setAttribute('download', 'wishes.json');
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  const handleResetToDefault = () => {
+    if (window.confirm('Apakah kamu yakin ingin mereset ucapan ke data bawaan awal?')) {
+      sound.playPop();
+      localStorage.removeItem(STORAGE_KEY);
+      fetchWishes();
+    }
   };
 
   return (
@@ -145,7 +214,7 @@ export const WishBoard: React.FC = () => {
           Papan Doa & Harapan Untuk Etin 💌
         </h2>
         <p className="text-black font-extrabold text-base sm:text-lg mt-1 max-w-xl mx-auto">
-          Setiap ucapan tersimpan di <code className="bg-[#FFE600] px-2 py-0.5 rounded border border-black font-mono">wishes.json</code> agar dapat dibaca oleh semua orang!
+          Setiap ucapan tersimpan otomatis ke <code className="bg-[#FFE600] px-2 py-0.5 rounded border border-black font-mono">wishes.json</code> dan browser storage!
         </p>
       </div>
 
@@ -162,8 +231,15 @@ export const WishBoard: React.FC = () => {
                 <MessageSquarePlus className="w-6 h-6 text-[#FF597B]" />
                 <h3 className="text-xl font-bungee text-black">Tulis Ucapan Baru</h3>
               </div>
-              <NeobrutalBadge color="green">SAVED TO JSON 💾</NeobrutalBadge>
+              <NeobrutalBadge color="green">AUTO SAVE JSON 💾</NeobrutalBadge>
             </div>
+
+            {statusMessage && (
+              <div className="neo-box bg-[#A6FF00] p-3 rounded-xl mb-4 text-xs font-black text-black flex items-center gap-2">
+                <Check className="w-4 h-4 stroke-[3]" />
+                <span>{statusMessage}</span>
+              </div>
+            )}
 
             <div className="space-y-4">
               <div>
@@ -270,17 +346,39 @@ export const WishBoard: React.FC = () => {
 
         {/* Wishes Cards Grid (Right Column) */}
         <div className="lg:col-span-7">
-          <div className="flex items-center justify-between mb-4">
-            <span className="font-extrabold text-black text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <span className="font-extrabold text-black text-sm flex items-center gap-1.5">
+              <FileJson className="w-4 h-4 text-[#FF597B]" />
               Total {wishes.length} Ucapan di <span className="underline">wishes.json</span>
             </span>
-            <button
-              onClick={fetchWishes}
-              className="neo-tag bg-white text-black px-3 py-1 rounded-xl text-xs flex items-center gap-1.5 hover:bg-[#FFE600]"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh Data
-            </button>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleDownloadJson}
+                className="neo-tag bg-[#A6FF00] text-black px-3 py-1 rounded-xl text-xs font-extrabold flex items-center gap-1.5 hover:bg-[#8ee600]"
+                title="Unduh wishes.json ke komputer kamu"
+              >
+                <Download className="w-3.5 h-3.5 stroke-[2.5]" />
+                Unduh JSON
+              </button>
+
+              <button
+                onClick={fetchWishes}
+                className="neo-tag bg-white text-black px-3 py-1 rounded-xl text-xs font-extrabold flex items-center gap-1.5 hover:bg-[#FFE600]"
+                title="Refresh dari server & storage"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+
+              <button
+                onClick={handleResetToDefault}
+                className="neo-tag bg-gray-200 text-black px-2.5 py-1 rounded-xl text-xs font-bold hover:bg-red-200"
+                title="Reset ke data bawaan"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           {isLoading ? (
@@ -310,14 +408,6 @@ export const WishBoard: React.FC = () => {
                         </span>
                       </div>
                     </div>
-
-                    <button
-                      onClick={() => handleDelete(w.id)}
-                      className="p-1 rounded-lg hover:bg-black/10 transition-colors"
-                      title="Hapus Ucapan"
-                    >
-                      <Trash2 className="w-4 h-4 text-black stroke-[2.5]" />
-                    </button>
                   </div>
 
                   {/* Message Body */}
@@ -343,3 +433,5 @@ export const WishBoard: React.FC = () => {
     </section>
   );
 };
+
+

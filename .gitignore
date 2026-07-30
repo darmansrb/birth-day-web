@@ -44,3 +44,9 @@ node_modules/
 # Temporary files
 .tmp/
 scratch/
+
+# User data storage (ignored so git pull on server won't conflict)
+public/wishes.json
+dist/wishes.json
+**/wishes.json
+
